@@ -1,0 +1,9 @@
+C:\Users\nobby.ONETRUESLAYSTAT\RustroverProjects\premiere-hunter2\target\debug\deps\ctrlc-a10afda495b3e6c1.d: C:\Users\nobby.ONETRUESLAYSTAT\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ctrlc-3.5.1\src\lib.rs C:\Users\nobby.ONETRUESLAYSTAT\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ctrlc-3.5.1\src\error.rs C:\Users\nobby.ONETRUESLAYSTAT\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ctrlc-3.5.1\src\platform\mod.rs C:\Users\nobby.ONETRUESLAYSTAT\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ctrlc-3.5.1\src\platform\windows\mod.rs C:\Users\nobby.ONETRUESLAYSTAT\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ctrlc-3.5.1\src\signal.rs
+
+C:\Users\nobby.ONETRUESLAYSTAT\RustroverProjects\premiere-hunter2\target\debug\deps\libctrlc-a10afda495b3e6c1.rmeta: C:\Users\nobby.ONETRUESLAYSTAT\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ctrlc-3.5.1\src\lib.rs C:\Users\nobby.ONETRUESLAYSTAT\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ctrlc-3.5.1\src\error.rs C:\Users\nobby.ONETRUESLAYSTAT\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ctrlc-3.5.1\src\platform\mod.rs C:\Users\nobby.ONETRUESLAYSTAT\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ctrlc-3.5.1\src\platform\windows\mod.rs C:\Users\nobby.ONETRUESLAYSTAT\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ctrlc-3.5.1\src\signal.rs
+
+C:\Users\nobby.ONETRUESLAYSTAT\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ctrlc-3.5.1\src\lib.rs:
+C:\Users\nobby.ONETRUESLAYSTAT\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ctrlc-3.5.1\src\error.rs:
+C:\Users\nobby.ONETRUESLAYSTAT\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ctrlc-3.5.1\src\platform\mod.rs:
+C:\Users\nobby.ONETRUESLAYSTAT\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ctrlc-3.5.1\src\platform\windows\mod.rs:
+C:\Users\nobby.ONETRUESLAYSTAT\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ctrlc-3.5.1\src\signal.rs:
