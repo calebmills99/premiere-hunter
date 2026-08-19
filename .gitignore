@@ -2,7 +2,6 @@
 /target/
 **/*.rs.bk
 *.pdb
-Cargo.lock
 
 # IDE
 .vscode/
@@ -14,6 +13,7 @@ Cargo.lock
 # OS
 .DS_Store
 Thumbs.db
-!/.venv/
-!/.venv/
-!/target/
+
+# Relink backups written next to projects
+*.prproj.bak
+*.prproj.bak-*
