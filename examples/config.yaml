@@ -1,52 +1,29 @@
 # Example configuration file for Premiere Hunter
-# Copy this file and modify it to suit your needs
 # Usage: premiere-hunter --config path/to/config.yaml
 
-# Text to search for (case-insensitive)
-# Can be overridden by CLI argument
 search_text: "jock"
 
-# Directories to search
-# On Windows, use double backslashes or forward slashes
+# %VAR% and $VAR / ${VAR} are expanded
 paths:
-  - "C:\\Users\\nobby.ONETRUESLAYSTAT\\Documents"
-  - "D:\\Projects\\Video"
-  # You can also use forward slashes on Windows:
-  # - "C:/Users/YourName/Documents"
+  - "%USERPROFILE%/Documents"
+  - "$HOME/Projects"
 
-# Number of threads to use for parallel processing
-# Optional: defaults to number of CPU cores
 threads: 8
 
-# Automatically include common drives (C:\ and D:\) in the search roots
-# These are merged with the paths above
-auto_drives: true
+# Merge C:\ and D:\ (Windows) or home + mounts (Unix) with the paths above
+auto_drives: false
 
-# File extensions to search (case-insensitive)
-# Defaults to ["prproj"] if not specified
 extensions:
-  - "prproj"  # Adobe Premiere Pro projects
-  - "aep"     # Adobe After Effects projects (optional)
-  - "ppj"     # Premiere Pro project (legacy)
+  - prproj
 
-# Follow symbolic links during directory traversal
-# Defaults to false
 follow_links: false
 
-# Maximum file size in megabytes
-# Files larger than this will be skipped
-# Optional: if not set, no size limit is enforced
+# Skip projects larger than this on disk. Omit or 0 for no limit.
 max_file_size_mb: 500
 
-# Directories to exclude from search
-# Directory names are matched case-insensitively
-# Optional: if not set, no directories are excluded
+# Extra directory names to skip (merged with built-in system excludes)
 exclude_dirs:
-  - "node_modules"
-  - ".git"
-  - ".svn"
-  - "temp"
-  - "cache"
-  - "backup"
-  - "Archive"
-  - %APPDATA%
+  - Archive
+  - backup
+  - cache
+  - temp

@@ -1,260 +1,92 @@
 # Premiere Hunter
 
-A fast, parallel Rust CLI tool to search for text within Adobe Premiere Pro project files (.prproj).
+Fast parallel search of Adobe Premiere Pro `.prproj` files, plus listing and relinking missing media.
 
-## Features
+`.prproj` files are gzipped XML. Premiere stores media as **text** in `<FilePath>` and `<ActualMediaFilePath>` — this tool searches that payload and, with `--fix`, actually rewrites those paths.
 
-- **Fast parallel processing** using the Rayon crate
-- **Recursive search** across entire drives or specific directories
-- **Case-insensitive search** for text within project files
-- **Progress bar** showing real-time search status
-- **Error handling** that gracefully skips inaccessible files
-- **YAML configuration** for persistent search settings
-- **Streaming file search** for memory-efficient searching of large files
-- **Flexible file filtering** by extensions, directories, and size
-- **Cross-platform** (though optimized for Windows paths)
-
-## Installation
-
-### Prerequisites
-
-- [Rust](https://rustup.rs/) (1.70 or later)
-
-### Build from source
+## Install
 
 ```bash
-git clone <repository-url>
-cd premiere-hunter
 cargo build --release
 ```
 
-The compiled binary will be available at `target/release/premiere-hunter` (or `premiere-hunter.exe` on Windows).
+Binary: `target/release/premiere-hunter` (`.exe` on Windows).
 
-## Usage
-
-### Basic usage
-
-Search for "clair de lune" in C:\ and D:\ drives (default on Windows):
+## Search
 
 ```bash
-premiere-hunter "clair de lune"
+# Positional search text (case-insensitive)
+premiere-hunter "clair de lune" --paths ./projects
+
+# Same thing with -s
+premiere-hunter -s "camera_015" --paths "D:\Projects"
+
+# Snippet around the hit
+premiere-hunter "jock" --paths . --show-snippets
 ```
 
-### Custom search paths (directories or files)
-
-Search specific directories or individual .prproj files. When you pass a file path, the tool skips any wide filesystem scan and operates only on the given file(s):
-
-```powershell
-# Directories
-premiere-hunter "your search term" --paths "C:\\Users\\YourName\\Documents","D:\\Projects"
-
-# Single file (only this project is processed)
-premiere-hunter -s "camera_015" --paths "C:\\Users\\YourName\\RustroverProjects\\premiere-hunter2\\chapter one pristine.prproj"
-```
-
-### Adjust thread count
-
-Specify the number of threads to use:
+If you pass a `.prproj` file, only that project is opened — no drive walk.
 
 ```bash
-premiere-hunter "search term" --threads 8
+premiere-hunter -s "newplane" --paths "./chapterone.prproj"
 ```
 
-### Using YAML configuration
-
-Create a configuration file to store your search settings:
+## List and relink media
 
 ```bash
-premiere-hunter --config config.yaml
+# Show FOUND / MISSING for every referenced clip
+premiere-hunter --list-assets --paths "./chapterone.prproj"
+
+# Preview relinks without writing
+premiere-hunter --list-assets --fix --dry-run --paths "./chapterone.prproj" --paths "./media"
+
+# Relink in place (writes a .prproj.bak first)
+premiere-hunter --list-assets --fix --paths "./chapterone.prproj"
 ```
 
-CLI arguments override YAML settings. You can combine both:
+`--fix` matches missing files **by filename**, then picks the best on-disk copy (same parent folder and drive beat Adobe Auto-Save / preview folders). It rewrites every copy of that path in the project XML, including `<ActualMediaFilePath>` and `<RelativePath>` that embed the absolute path.
+
+`--search-all-drives` adds every existing drive letter on Windows, or `$HOME` plus `/mnt` `/media` `/run/media` on Unix.
+
+## Config
 
 ```bash
-premiere-hunter "override search" --config config.yaml --threads 16
+premiere-hunter --config examples/config.yaml
 ```
 
-See `examples/config.example.yaml` for a complete configuration example.
-
-### Help
-
-View all available options:
-
-```bash
-premiere-hunter --help
-```
-
-### Fix missing assets (relink)
-
-Use the tool to scan .prproj files, list the media/assets they reference, and automatically relink missing ones to files it discovers elsewhere on your machine.
-
-Important notes:
-- Always keep a backup of your .prproj before running fixes.
-- Fixing is performed during asset listing mode only.
-- Projects that were gzipped remain gzipped after rewriting.
-
-Basic fix on specific folders:
-
-```powershell
-premiere-hunter --list-assets --fix --paths "C:\Projects","D:\Media"
-```
-
-Scan all local drives and attempt relinks:
-
-```powershell
-premiere-hunter --list-assets --fix --search-all-drives
-```
-
-Rebuild the file index (ignore any cache) before fixing:
-
-```powershell
-premiere-hunter --list-assets --fix --rescan --paths "C:\Projects","D:\Media"
-```
-
-Optionally filter shown assets by substring to reduce noise (does not change relink behavior):
-
-```powershell
-premiere-hunter --list-assets --fix --paths "D:\Projects" -s "camera_015"
-```
-
-Using a YAML config file for paths and options:
-
-```powershell
-premiere-hunter --config examples\config.yaml --list-assets --fix
-```
-
-### Fix a single project file
-
-You can run the fixer on a single .prproj file. When you pass a file path with --fix, the tool will index the parent folder of that project to look for candidate media files (and will not scan your whole machine unless you ask it to).
-
-Examples:
-
-```powershell
-# Fix just one project; index only its parent folder for relinking candidates
-premiere-hunter --list-assets --fix --paths "C:\Users\YourName\Projects\chapter one pristine.prproj"
-
-# Fix one project but also search additional folders for candidates
-premiere-hunter --list-assets --fix --paths "D:\Media","E:\Footage","C:\Users\YourName\Projects\chapter one pristine.prproj"
-
-# Fix one project and search all drives for candidates (slow but thorough)
-premiere-hunter --list-assets --fix --search-all-drives --paths "C:\Users\YourName\Projects\chapter one pristine.prproj"
-```
-
-Notes:
-- If you provide only the .prproj file and use --fix, the tool will index its parent folder to find matching filenames to relink.
-- To broaden relinking, add more folders via --paths or use --search-all-drives.
-
-What the fix does:
-- Lists assets for each project and identifies those whose paths are missing.
-- Builds a machine-wide index of files by filename.
-- For each missing asset, if a file with the same name is found elsewhere, updates the path inside the .prproj to the discovered location.
-- Writes the modified project, preserving original compression when applicable.
-
-## Configuration
-
-You can use a YAML configuration file to set default search parameters. Here's an example:
+CLI wins over YAML. `%USERPROFILE%`, `%APPDATA%`, `$HOME`, and `${HOME}` expand in `paths` and `exclude_dirs`.
 
 ```yaml
-# Search text (can be overridden by CLI argument)
 search_text: "clair de lune"
-
-# Directories to search
 paths:
-  - "C:\\Users\\YourName\\Documents"
-  - "D:\\Projects"
-
-# Number of threads (optional, defaults to CPU cores)
+  - "%USERPROFILE%/Documents"
 threads: 8
-
-# File extensions to search (defaults to ["prproj"])
-extensions:
-  - "prproj"
-  - "aep"  # Also search After Effects projects
-
-# Follow symbolic links (defaults to false)
-follow_links: false
-
-# Maximum file size in MB (optional, files larger are skipped)
-# Defaults to 100 MB. Set to 0 to disable the limit entirely.
-max_file_size_mb: 100
-
-# Directories to exclude from search (optional)
+extensions: [prproj]
+max_file_size_mb: 500
 exclude_dirs:
-  - "node_modules"
-  - ".git"
-  - "temp"
+  - Archive
 ```
 
-All settings are optional. CLI arguments take precedence over YAML settings.
+System folders (`Windows`, `$Recycle.Bin`, `AppData`, …) are always skipped unless you are pointing at a specific file.
 
-## How it works
+## Flags worth knowing
 
-1. Loads configuration from YAML file (if provided) and merges with CLI arguments
-2. Recursively scans specified directories for files matching the configured extensions
-3. Filters out excluded directories and files exceeding size limits
-4. Processes files in parallel using multiple CPU cores
-5. Performs case-insensitive streaming search with minimal memory usage
-6. Displays matching file paths in real-time
-7. Shows summary statistics when complete
+| Flag | What it does |
+| --- | --- |
+| `--threads N` | Rayon pool size |
+| `--search-all-drives` | Expand roots to local drives / mounts |
+| `--rescan` | Rebuild the relink filename cache |
+| `--dry-run` | Print relinks, write nothing |
+| `--no-backup` | Skip the `.prproj.bak` next to a rewritten project |
+| `--show-snippets` | Print a slice of XML around a text match |
 
-## Example output
+Cache for `--fix` lives at `~/.premiere-hunter/file_cache.json`. Text search does **not** build that index.
 
-```
-Searching for: 'clair de lune'
-Search paths: ["C:\\", "D:\\"]
-Scanning for .prproj files...
+## How search works
 
-Found 47 .prproj files to search
+1. Merge YAML + CLI paths (or default to `C:\`/`D:\` on Windows, the current directory on Unix).
+2. Walk for `*.prproj` (and any extra `extensions`), skipping excluded folders.
+3. Stream each gzipped project on a Rayon thread, case-insensitive.
+4. Print matches as they land, then a summary.
 
-[00:00:03] [==============================>---------] 32/47 files (10/s)
-
-✓ MATCH: C:\Users\YourName\Videos\Projects\Wedding_2024\wedding_final.prproj
-✓ MATCH: D:\Archive\Music Videos\debussy_tribute.prproj
-
-============================================================
-Search complete!
-Files processed: 47
-Matches found: 2
-Files skipped (errors): 3
-============================================================
-```
-
-## Dependencies
-
-- [walkdir](https://crates.io/crates/walkdir) - Recursive directory traversal
-- [rayon](https://crates.io/crates/rayon) - Parallel processing
-- [clap](https://crates.io/crates/clap) - Command-line argument parsing
-- [indicatif](https://crates.io/crates/indicatif) - Progress bars
-- [serde](https://crates.io/crates/serde) - Serialization/deserialization
-- [serde_yaml](https://crates.io/crates/serde_yaml) - YAML configuration support
-
-## License
-
-MIT
-
-
-
-## Auto-discover drives for Premiere projects
-
-You can now automatically include common Windows drives in your search roots so the tool will scan for `.prproj` files across the whole machine.
-
-- CLI: `--auto-drives` merges C:\ and D:\ (when present) with any `--paths` and config paths.
-- Config: set `auto_drives: true` to enable the same behavior from YAML.
-
-Examples:
-
-```
-# Scan C:\ and D:\ for .prproj, prompt for search text if missing
-premiere-hunter --auto-drives
-
-# Use config + also include C:\ and D:\
-premiere-hunter --config examples\config.yaml --auto-drives
-
-# Provide search text and auto-drives
-premiere-hunter "camera-15" --auto-drives
-```
-
-Notes:
-- If no paths are provided via CLI or config, the tool already defaults to scanning `C:\` and `D:\` when they exist.
-- `--auto-drives` makes this explicit and merges with provided paths instead of overriding them.
-- Keep your `extensions` to `prproj` for the best performance unless you intentionally want other types.
+Ctrl+C stops after in-flight files finish (exit 130).
