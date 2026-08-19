@@ -1,16 +1,16 @@
-use crate::paths::drive_letter;
-use std::path::{Path, PathBuf};
+use crate::paths::{drive_letter, native_path};
+use std::path::PathBuf;
 
 /// Pick the most plausible on-disk stand-in for a missing Premiere media file.
 ///
 /// Prefers: matching parent folders, same drive, not Adobe auto-save/preview junk.
 pub fn pick_best_location<'a>(missing: &str, candidates: &'a [PathBuf]) -> Option<&'a PathBuf> {
-    let missing_path = Path::new(missing);
+    let missing_path = native_path(missing);
     let missing_comps: Vec<String> = missing_path
         .components()
         .map(|c| c.as_os_str().to_string_lossy().to_ascii_lowercase())
         .collect();
-    let missing_drive = drive_letter(missing_path);
+    let missing_drive = drive_letter(&missing_path);
     let missing_parent = missing_path
         .parent()
         .and_then(|p| p.file_name())
@@ -63,7 +63,7 @@ pub fn pick_best_location<'a>(missing: &str, candidates: &'a [PathBuf]) -> Optio
             score -= 25;
         }
 
-        if cand.as_path() == missing_path {
+        if cand.as_path() == missing_path.as_path() {
             continue;
         }
 

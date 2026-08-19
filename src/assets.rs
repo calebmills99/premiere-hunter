@@ -1,10 +1,10 @@
-use crate::paths::{is_media_extension, is_path_tag_name, normalize_asset_path};
+use crate::paths::{asset_exists_on_disk, is_media_extension, is_path_tag_name, normalize_asset_path};
 use crate::prproj::{open_maybe_gzip, skip_oversize};
 use quick_xml::events::Event;
 use quick_xml::Reader;
 use std::collections::HashSet;
 use std::io::{BufReader, Read};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, Clone)]
 pub struct AssetInfo {
@@ -42,7 +42,7 @@ pub fn extract_assets_from_prproj(
         }
         let key = norm.to_lowercase();
         if seen.insert(key) {
-            let found = PathBuf::from(&norm).exists();
+            let found = asset_exists_on_disk(&norm, path);
             assets.push(AssetInfo { path: norm, found });
         }
     };

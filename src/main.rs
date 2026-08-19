@@ -9,7 +9,7 @@ mod search;
 use assets::extract_assets_from_prproj;
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
-use paths::expand_env;
+use paths::{expand_env, stored_file_name};
 use rayon::prelude::*;
 use relink::pick_best_location;
 use rewrite::rewrite_prproj;
@@ -476,9 +476,7 @@ fn main() {
                                     path.display()
                                 );
                                 for missing_path_str in &missing_for_this_project {
-                                    if let Some(file_name) =
-                                        Path::new(missing_path_str).file_name().and_then(|n| n.to_str())
-                                    {
+                                    if let Some(file_name) = stored_file_name(missing_path_str) {
                                         if let Some(locations) = file_map.get(&file_name.to_lowercase()) {
                                             if let Some(best_location) =
                                                 pick_best_location(missing_path_str, locations)
@@ -636,7 +634,7 @@ fn main() {
         println!("\n--- Missing Asset Report ---");
         for missing_path in &missing_assets_to_find {
             println!("\nMISSING: {}", missing_path);
-            if let Some(file_name) = Path::new(missing_path).file_name().and_then(|n| n.to_str()) {
+            if let Some(file_name) = stored_file_name(missing_path) {
                 if let Some(locations) = file_map.get(&file_name.to_lowercase()) {
                     let existing: Vec<_> = locations.iter().filter(|p| p.exists()).collect();
                     if existing.is_empty() {

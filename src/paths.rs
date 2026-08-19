@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub fn xml_unescape(s: &str) -> String {
     s.replace("&amp;", "&")
@@ -174,6 +174,36 @@ pub fn default_exclude_dirs() -> Vec<String> {
     ]
 }
 
+pub fn native_path(stored: &str) -> PathBuf {
+    if cfg!(windows) {
+        PathBuf::from(stored)
+    } else {
+        PathBuf::from(stored.replace('\\', "/"))
+    }
+}
+
+pub fn stored_file_name(stored: &str) -> Option<String> {
+    native_path(stored)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .filter(|s| !s.is_empty() && *s != "." && *s != "..")
+        .map(|s| s.to_string())
+}
+
+/// Whether a stored Premiere path exists, resolving relatives against the project folder.
+pub fn asset_exists_on_disk(stored: &str, project: &Path) -> bool {
+    let native = native_path(stored);
+    if native.exists() {
+        return true;
+    }
+    if let Some(parent) = project.parent() {
+        if parent.join(&native).exists() {
+            return true;
+        }
+    }
+    false
+}
+
 pub fn drive_letter(path: &Path) -> Option<char> {
     path.to_string_lossy()
         .chars()
@@ -213,5 +243,26 @@ mod tests {
     fn xml_roundtrip_ampersand() {
         let s = r"D:\clips\Tom & Jerry.mp4";
         assert_eq!(xml_unescape(&xml_escape(s)), s);
+    }
+
+    #[test]
+    fn relative_asset_resolves_against_project_folder() {
+        let dir = std::env::temp_dir().join(format!("ph-exists-{}", std::process::id()));
+        let media = dir.join("spain camera");
+        std::fs::create_dir_all(&media).unwrap();
+        std::fs::write(media.join("ChampsElyses.MPG"), b"x").unwrap();
+        let project = dir.join("show.prproj");
+        std::fs::write(&project, b"xml").unwrap();
+        assert!(asset_exists_on_disk(r".\spain camera\ChampsElyses.MPG", &project));
+        assert!(!asset_exists_on_disk(r"G:\spain camera\nope.MPG", &project));
+        assert_eq!(
+            stored_file_name(r"G:\spain camera\ChampsElyses.MPG").as_deref(),
+            Some("ChampsElyses.MPG")
+        );
+        assert_eq!(
+            stored_file_name(r".\spain camera\ChampsElyses.MPG").as_deref(),
+            Some("ChampsElyses.MPG")
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
