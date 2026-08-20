@@ -9,7 +9,7 @@ mod search;
 use assets::extract_assets_from_prproj;
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
-use paths::{expand_env, stored_file_name};
+use paths::{expand_env, path_dedup_key, stored_file_name};
 use rayon::prelude::*;
 use relink::pick_best_location;
 use rewrite::rewrite_prproj;
@@ -17,9 +17,9 @@ use scan::{
     default_search_paths, enumerate_search_drives, get_cache_path, load_cache, load_config,
     merge_excludes, save_cache, scan_files, FileConfig,
 };
-use search::{file_contains_case_insensitive, file_snippet_case_insensitive};
+use search::file_snippet_case_insensitive;
 use std::collections::{HashMap, HashSet};
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -73,14 +73,17 @@ struct Args {
     #[arg(long, default_value_t = false)]
     rescan: bool,
 
-    /// With --list-assets, relink missing media by rewriting the .prproj.
+    /// Relink missing media by rewriting the .prproj (implies --list-assets).
     #[arg(
         long,
         default_value_t = false,
-        requires = "list_assets",
         aliases = ["fix-missing", "relink"]
     )]
     fix: bool,
+
+    /// With --list-assets, only print missing media.
+    #[arg(long, default_value_t = false)]
+    missing_only: bool,
 
     /// Show what --fix would change without writing the project.
     #[arg(long, default_value_t = false)]
@@ -154,7 +157,7 @@ fn merge_paths(args: &Args, config: &Option<FileConfig>) -> (Vec<PathBuf>, Strin
     }
 
     let mut seen: HashSet<String> = HashSet::new();
-    search_paths.retain(|p| seen.insert(p.to_string_lossy().to_lowercase()));
+    search_paths.retain(|p| seen.insert(path_dedup_key(p)));
 
     let path_source = if source_parts.len() > 1 {
         format!("{} (merged)", source_parts.join("+"))
@@ -180,7 +183,12 @@ fn main() {
     };
 
     let mut search_text_opt = search_text_from_args(&args, &config);
-    if !args.list_assets && search_text_opt.is_none() {
+    let list_assets = args.list_assets || args.fix;
+    if !list_assets && search_text_opt.is_none() {
+        if !io::stdin().is_terminal() {
+            eprintln!("Error: search text required (positional argument or -s/--search)");
+            std::process::exit(2);
+        }
         search_text_opt = Some(prompt_search_text());
     }
 
@@ -206,7 +214,6 @@ fn main() {
         }
     }
 
-    let list_assets = args.list_assets;
     if list_assets {
         println!("Listing assets used in Premiere project files");
         if let Some(ref f) = search_text_opt {
@@ -332,7 +339,7 @@ fn main() {
         let mut seen_roots: HashSet<String> = HashSet::new();
         scan_roots.retain(|p| {
             if p.is_dir() && p.exists() {
-                seen_roots.insert(p.to_string_lossy().to_lowercase())
+                seen_roots.insert(path_dedup_key(p))
             } else {
                 false
             }
@@ -392,7 +399,7 @@ fn main() {
     }
 
     let mut seen_targets: HashSet<String> = HashSet::new();
-    target_files.retain(|p| seen_targets.insert(p.to_string_lossy().to_lowercase()));
+    target_files.retain(|p| seen_targets.insert(path_dedup_key(p)));
 
     let total_files = target_files.len();
     println!("Found {} files to search\n", total_files);
@@ -453,14 +460,22 @@ fn main() {
                         let mut missing_for_this_project = Vec::new();
                         {
                             let _g = print_lock.lock().unwrap();
-                            println!("\nProject: {}", path.display());
+                            let will_print = assets.iter().any(|a| !args.missing_only || !a.found);
+                            if will_print {
+                                println!("\nProject: {}", path.display());
+                            }
                             for a in &assets {
-                                let status = if a.found { "[FOUND]  " } else { "[MISSING]" };
                                 if !a.found {
                                     missing_for_this_project.push(a.path.clone());
                                     all_missing_assets.lock().unwrap().insert(a.path.clone());
                                 }
-                                println!("  - {} {}", status, a.path);
+                                if args.missing_only && a.found {
+                                    continue;
+                                }
+                                if will_print {
+                                    let status = if a.found { "[FOUND]  " } else { "[MISSING]" };
+                                    println!("  - {} {}", status, a.path);
+                                }
                             }
                         }
                         total_assets.fetch_add(assets.len(), Ordering::Relaxed);
@@ -548,29 +563,21 @@ fn main() {
                     errors.fetch_add(1, Ordering::Relaxed);
                 }
             }
-        } else if show_snippets {
+        } else {
             let st = search_text_for_search_mode.as_ref().expect("search text");
             match file_snippet_case_insensitive(path, st, max_file_size_bytes, snippet_chars) {
-                Ok(Some(snippet)) => {
+                Ok(Some(hit)) => {
                     let _g = print_lock.lock().unwrap();
                     println!("\n✓ MATCH: {}", path.display());
-                    println!("    {}", snippet);
+                    if let Some(clip) = &hit.clip {
+                        println!("    clip: {}", clip);
+                    }
+                    if show_snippets {
+                        println!("    {}", hit.snippet);
+                    }
                     files_matched.fetch_add(1, Ordering::Relaxed);
                 }
                 Ok(None) => {}
-                Err(_) => {
-                    errors.fetch_add(1, Ordering::Relaxed);
-                }
-            }
-        } else {
-            let st = search_text_for_search_mode.as_ref().expect("search text");
-            match file_contains_case_insensitive(path, st, max_file_size_bytes) {
-                Ok(true) => {
-                    let _g = print_lock.lock().unwrap();
-                    println!("\n✓ MATCH: {}", path.display());
-                    files_matched.fetch_add(1, Ordering::Relaxed);
-                }
-                Ok(false) => {}
                 Err(_) => {
                     errors.fetch_add(1, Ordering::Relaxed);
                 }
@@ -624,34 +631,42 @@ fn main() {
     }
     println!("{}", "=".repeat(60));
 
-    let missing_assets_to_find: Vec<String> =
+    let mut missing_assets_to_find: Vec<String> =
         all_missing_assets.lock().unwrap().iter().cloned().collect();
+    missing_assets_to_find.sort();
     if !missing_assets_to_find.is_empty() {
-        println!(
-            "\nFound {} unique missing assets. Cross-referencing with discovered files...",
-            missing_assets_to_find.len()
-        );
-        println!("\n--- Missing Asset Report ---");
-        for missing_path in &missing_assets_to_find {
-            println!("\nMISSING: {}", missing_path);
-            if let Some(file_name) = stored_file_name(missing_path) {
-                if let Some(locations) = file_map.get(&file_name.to_lowercase()) {
-                    let existing: Vec<_> = locations.iter().filter(|p| p.exists()).collect();
-                    if existing.is_empty() {
-                        println!("  -> MIA (Missing In Action)");
-                    } else {
-                        for loc in existing {
-                            println!("  -> FOUND AT: {}", loc.display());
+        if file_map.is_empty() {
+            println!(
+                "\n{} unique missing assets. No media index was built — pass --fix to hunt replacements on disk.",
+                missing_assets_to_find.len()
+            );
+        } else {
+            println!(
+                "\nFound {} unique missing assets. Cross-referencing with discovered files...",
+                missing_assets_to_find.len()
+            );
+            println!("\n--- Missing Asset Report ---");
+            for missing_path in &missing_assets_to_find {
+                println!("\nMISSING: {}", missing_path);
+                if let Some(file_name) = stored_file_name(missing_path) {
+                    if let Some(locations) = file_map.get(&file_name.to_lowercase()) {
+                        let existing: Vec<_> = locations.iter().filter(|p| p.exists()).collect();
+                        if existing.is_empty() {
+                            println!("  -> MIA (Missing In Action)");
+                        } else {
+                            for loc in existing {
+                                println!("  -> FOUND AT: {}", loc.display());
+                            }
                         }
+                    } else {
+                        println!("  -> MIA (Missing In Action)");
                     }
                 } else {
                     println!("  -> MIA (Missing In Action)");
                 }
-            } else {
-                println!("  -> MIA (Missing In Action)");
             }
+            println!("\n{}", "=".repeat(60));
         }
-        println!("\n{}", "=".repeat(60));
     }
 
     if was_interrupted {

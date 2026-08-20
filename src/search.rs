@@ -2,6 +2,13 @@ use crate::prproj::{open_maybe_gzip, skip_oversize};
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SearchHit {
+    pub snippet: String,
+    pub clip: Option<String>,
+}
+
+#[allow(dead_code)]
 pub fn file_contains_case_insensitive(
     path: &Path,
     search_text: &str,
@@ -33,7 +40,7 @@ pub fn file_snippet_case_insensitive(
     search_text: &str,
     max_size_bytes: Option<usize>,
     snippet_chars: usize,
-) -> Result<Option<String>, std::io::Error> {
+) -> Result<Option<SearchHit>, std::io::Error> {
     if skip_oversize(path, max_size_bytes)? {
         return Ok(None);
     }
@@ -63,13 +70,44 @@ pub fn file_snippet_case_insensitive(
             snippet = compact_ws(&snippet);
             let prefix = if start > 0 { "..." } else { "" };
             let suffix = if end < combined.len() { "..." } else { "" };
-            return Ok(Some(format!("{}{}{}", prefix, snippet, suffix)));
+            return Ok(Some(SearchHit {
+                snippet: format!("{}{}{}", prefix, snippet, suffix),
+                clip: nearby_clip_label(&combined, pos),
+            }));
         }
 
         overlap = overlap_tail(&combined, needle_chars);
     }
 
     Ok(None)
+}
+
+fn nearby_clip_label(haystack: &str, pos: usize) -> Option<String> {
+    let start = floor_char_boundary(haystack, pos.saturating_sub(1200));
+    let end = floor_char_boundary(haystack, (pos + 400).min(haystack.len()));
+    let end = if end < start { haystack.len() } else { end };
+    let window = &haystack[start..end];
+    last_tag_value(window, "Name").or_else(|| last_tag_value(window, "Title"))
+}
+
+fn last_tag_value(window: &str, tag: &str) -> Option<String> {
+    let open = format!("<{tag}>");
+    let close = format!("</{tag}>");
+    let mut last = None;
+    let mut from = 0;
+    while let Some(rel) = window[from..].find(&open) {
+        let abs = from + rel + open.len();
+        if let Some(end) = window[abs..].find(&close) {
+            let value = compact_ws(&window[abs..abs + end]);
+            if !value.is_empty() && value.len() <= 180 && !value.contains('<') {
+                last = Some(value);
+            }
+            from = abs + end + close.len();
+        } else {
+            break;
+        }
+    }
+    last
 }
 
 fn join_overlap(overlap: &str, line: &str) -> String {
@@ -142,7 +180,8 @@ mod tests {
         let snippet = file_snippet_case_insensitive(&path, "lune", None, 40)
             .unwrap()
             .unwrap();
-        assert!(snippet.to_lowercase().contains("lune"));
+        assert!(snippet.snippet.to_lowercase().contains("lune"));
+        assert_eq!(snippet.clip.as_deref(), Some("Clair de Lune"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

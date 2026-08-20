@@ -143,4 +143,17 @@ mod tests {
         assert!(text.contains(r"E:\found\clip.mp4"));
         assert!(text.contains(r"..\E:\found\clip.mp4"));
     }
+
+    #[test]
+    fn rewrite_keeps_xml_escaping_for_ampersands() {
+        let old = r"D:\clips\Tom & Jerry\old.mp4";
+        let xml = sample_xml(r"D:\clips\Tom &amp; Jerry\old.mp4");
+        let mut corrections = HashMap::new();
+        corrections.insert(old.to_string(), r"E:\found\Tom & Jerry\new.mp4".to_string());
+        let (out, n) = rewrite_xml_bytes(xml.as_bytes(), &corrections);
+        let text = String::from_utf8_lossy(&out);
+        assert!(n >= 1);
+        assert!(text.contains(r"Tom &amp; Jerry\new.mp4"), "{text}");
+        assert!(!text.contains("Tom & Jerry"), "{text}");
+    }
 }

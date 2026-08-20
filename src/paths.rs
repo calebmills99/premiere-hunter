@@ -126,11 +126,17 @@ pub fn normalize_asset_path(raw: &str) -> String {
 
 /// Spell a replacement path the way Premiere stored the original.
 pub fn format_path_like(original: &str, new_path: &Path) -> String {
+    let unescaped = xml_unescape(original);
     let new = new_path.to_string_lossy();
-    if original.contains('/') && !original.contains('\\') {
+    let formatted = if unescaped.contains('/') && !unescaped.contains('\\') {
         new.replace('\\', "/")
     } else {
         new.replace('/', "\\")
+    };
+    if unescaped != original {
+        xml_escape(&formatted)
+    } else {
+        formatted
     }
 }
 
@@ -204,6 +210,15 @@ pub fn asset_exists_on_disk(stored: &str, project: &Path) -> bool {
     false
 }
 
+pub fn path_dedup_key(path: &Path) -> String {
+    let s = path.to_string_lossy();
+    if cfg!(windows) {
+        s.to_lowercase()
+    } else {
+        s.into_owned()
+    }
+}
+
 pub fn drive_letter(path: &Path) -> Option<char> {
     path.to_string_lossy()
         .chars()
@@ -243,6 +258,14 @@ mod tests {
     fn xml_roundtrip_ampersand() {
         let s = r"D:\clips\Tom & Jerry.mp4";
         assert_eq!(xml_unescape(&xml_escape(s)), s);
+    }
+
+    #[test]
+    fn format_path_like_reescapes_ampersand_variant() {
+        let escaped = r"D:\clips\Tom &amp; Jerry\old.mp4";
+        let formatted = format_path_like(escaped, Path::new(r"E:\found\Tom & Jerry\new.mp4"));
+        assert!(formatted.contains("&amp;"), "{formatted}");
+        assert!(!formatted.contains(" & "), "{formatted}");
     }
 
     #[test]

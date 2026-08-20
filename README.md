@@ -25,6 +25,8 @@ premiere-hunter -s "camera_015" --paths "D:\Projects"
 premiere-hunter "jock" --paths . --show-snippets
 ```
 
+Hits also print a nearby clip `<Name>` / `<Title>` when Premiere stored one.
+
 If you pass a `.prproj` file, only that project is opened — no drive walk.
 
 ```bash
@@ -40,8 +42,11 @@ premiere-hunter --list-assets --paths "./chapterone.prproj"
 # Preview relinks without writing
 premiere-hunter --list-assets --fix --dry-run --paths "./chapterone.prproj" --paths "./media"
 
-# Relink in place (writes a .prproj.bak first)
-premiere-hunter --list-assets --fix --paths "./chapterone.prproj"
+# Relink in place (writes a .prproj.bak first). --fix implies --list-assets.
+premiere-hunter --fix --paths "./chapterone.prproj"
+
+# Only the missing rows
+premiere-hunter --list-assets --missing-only --paths "./chapterone.prproj"
 ```
 
 `--fix` matches missing files **by filename**, then picks the best on-disk copy (same parent folder and drive beat Adobe Auto-Save / preview folders). It rewrites every copy of that path in the project XML, including `<ActualMediaFilePath>` and `<RelativePath>` that embed the absolute path.
@@ -79,6 +84,7 @@ System folders (`Windows`, `$Recycle.Bin`, `AppData`, …) are always skipped un
 | `--dry-run` | Print relinks, write nothing |
 | `--no-backup` | Skip the `.prproj.bak` next to a rewritten project |
 | `--show-snippets` | Print a slice of XML around a text match |
+| `--missing-only` | With --list-assets / --fix, hide FOUND rows |
 
 Cache for `--fix` lives at `~/.premiere-hunter/file_cache.json`. Text search does **not** build that index.
 
