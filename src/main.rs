@@ -73,6 +73,10 @@ struct Args {
     #[arg(long, default_value_t = false)]
     rescan: bool,
 
+    /// Filename cache JSON. Defaults to ~/.premiere-hunter/file_cache.json
+    #[arg(long)]
+    cache: Option<PathBuf>,
+
     /// Relink missing media by rewriting the .prproj (implies --list-assets).
     #[arg(
         long,
@@ -256,6 +260,10 @@ fn main() {
         }
     }
 
+    let cache_path_opt = args.cache.clone().or_else(get_cache_path);
+    let need_index = args.fix || args.rescan;
+    let use_cache = need_index && !args.rescan;
+
     if !explicit_targets.is_empty() {
         explicit_targets.retain(|p| {
             let ok_ext = p
@@ -279,9 +287,9 @@ fn main() {
             println!("No files matched filters (extensions/size).");
             return;
         }
-        if args.fix {
+        if need_index {
             println!(
-                "Using {} provided file(s) as targets; building file index for relink (fix mode).",
+                "Using {} provided file(s) as targets; indexing nearby folders for cache/relink.",
                 explicit_targets.len()
             );
         } else {
@@ -293,9 +301,14 @@ fn main() {
     }
 
     let mut file_map: HashMap<String, Vec<PathBuf>> = HashMap::new();
-    let cache_path_opt = get_cache_path();
-    let need_index = args.fix;
-    let use_cache = need_index && !args.rescan;
+
+    if let Some(ref cache_path) = cache_path_opt {
+        if args.rescan {
+            println!("Rebuilding file index at {}", cache_path.display());
+        } else if need_index {
+            println!("File index: {}", cache_path.display());
+        }
+    }
 
     if use_cache {
         if let Some(ref cache_path) = cache_path_opt {
@@ -315,10 +328,11 @@ fn main() {
     }
 
     let mut discovered_targets: Vec<PathBuf> = Vec::new();
-    let should_scan = explicit_targets.is_empty() || (args.fix && file_map.is_empty());
+    let should_scan =
+        explicit_targets.is_empty() || args.rescan || (need_index && file_map.is_empty());
     if should_scan {
         let mut scan_roots: Vec<PathBuf> = search_paths.clone();
-        if args.fix && !explicit_targets.is_empty() {
+        if need_index && !explicit_targets.is_empty() {
             let mut added = 0usize;
             for f in &explicit_targets {
                 if let Some(parent) = f.parent() {
@@ -351,19 +365,25 @@ fn main() {
                 &extensions,
                 &exclude_dirs,
                 follow_links,
-                need_index && file_map.is_empty(),
+                need_index && (file_map.is_empty() || args.rescan),
                 &interrupted,
             );
             discovered_targets = targets;
-            if file_map.is_empty() && need_index {
+            if need_index && (file_map.is_empty() || args.rescan) {
                 file_map = discovered;
                 if let Some(ref cache_path) = cache_path_opt {
-                    println!("Saving file index to cache...");
+                    println!("Saving file index to {}...", cache_path.display());
                     if let Err(e) = save_cache(cache_path, &file_map) {
                         eprintln!("Warning: Could not save cache: {}", e);
+                    } else {
+                        println!("Cache wrote {} filenames.", file_map.len());
                     }
                 }
             }
+        } else if need_index && !explicit_targets.is_empty() {
+            eprintln!(
+                "Warning: pointed at project file(s) but no folder to index. Add a media directory via --paths."
+            );
         }
     }
 

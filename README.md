@@ -42,6 +42,10 @@ premiere-hunter --list-assets --paths "./chapterone.prproj"
 # Preview relinks without writing
 premiere-hunter --list-assets --fix --dry-run --paths "./chapterone.prproj" --paths "./media"
 
+# Rebuild cache, point at one project, index a media folder
+premiere-hunter --fix --rescan --cache ./file_cache.json \
+  --paths "./chapterone.prproj" --paths "./media"
+
 # Relink in place (writes a .prproj.bak first). --fix implies --list-assets.
 premiere-hunter --fix --paths "./chapterone.prproj"
 
@@ -81,6 +85,7 @@ System folders (`Windows`, `$Recycle.Bin`, `AppData`, …) are always skipped un
 | `--threads N` | Rayon pool size |
 | `--search-all-drives` | Expand roots to local drives / mounts |
 | `--rescan` | Rebuild the relink filename cache |
+| `--cache PATH` | Cache JSON file (default `~/.premiere-hunter/file_cache.json`) |
 | `--dry-run` | Print relinks, write nothing |
 | `--no-backup` | Skip the `.prproj.bak` next to a rewritten project |
 | `--show-snippets` | Print a slice of XML around a text match |

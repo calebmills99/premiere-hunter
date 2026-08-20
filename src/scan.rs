@@ -35,6 +35,27 @@ pub fn save_cache(path: &Path, map: &HashMap<String, Vec<PathBuf>>) -> Result<()
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cache_roundtrip_preserves_filename_map() {
+        let dir = std::env::temp_dir().join(format!("ph-cache-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let cache = dir.join("file_cache.json");
+        let mut map = HashMap::new();
+        map.insert(
+            "champselyses.mpg".into(),
+            vec![dir.join("spain camera").join("ChampsElyses.MPG")],
+        );
+        save_cache(&cache, &map).unwrap();
+        let loaded = load_cache(&cache).unwrap();
+        assert_eq!(loaded.get("champselyses.mpg").unwrap().len(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
 pub fn is_excluded_dir(entry: &DirEntry, exclude_dirs: &[String]) -> bool {
     if let Some(name) = entry.file_name().to_str() {
         return exclude_dirs.iter().any(|exc| name.eq_ignore_ascii_case(exc));
